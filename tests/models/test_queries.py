@@ -3,7 +3,6 @@ from redash.models import Query
 
 
 class TestApiKeyGetByObject(BaseTestCase):
-
     def assert_visualizations(self, origin_q, origin_v, forked_q, forked_v):
         self.assertEqual(origin_v.options, forked_v.options)
         self.assertEqual(origin_v.type, forked_v.type)
@@ -70,4 +69,3 @@ class TestApiKeyGetByObject(BaseTestCase):
 
         self.assertEqual(count_table, 1)
         self.assertEqual(count_vis, 1)
-

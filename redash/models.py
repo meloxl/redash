@@ -798,6 +798,7 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
         if len(forked_visualizations) > 0:
             with db.database.atomic():
                 Visualization.insert_many(forked_visualizations).execute()
+
         return forked_query
 
     def pre_save(self, created):
@@ -837,6 +838,10 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
             self.api_key = hashlib.sha1(
                 u''.join((str(time.time()), self.query, str(self.user_id), self.name)).encode('utf-8')).hexdigest()
 
+<<<<<<< f23f073f63d182e9f9bd99aabb61614f8f8a2495
+=======
+>>>>>>> add query fork to models.py
+>>>>>>> add query fork to models.py
     @property
     def runtime(self):
         return self.latest_query_data.runtime
