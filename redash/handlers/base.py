@@ -4,7 +4,6 @@ from flask import Blueprint, current_app, request
 from flask_login import current_user, login_required
 from flask_restful import Resource, abort
 from sqlalchemy.exc import DataError
-
 from redash import settings
 from redash.authentication import current_org
 from redash.models import ApiUser

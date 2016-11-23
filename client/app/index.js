@@ -65,6 +65,10 @@ function registerPages() {
   each(pages, (registerPage) => {
     const routes = registerPage(ngModule);
 
+    function session(Auth) {
+      return Auth.loadSession();
+    }
+
     ngModule.config(($routeProvider) => {
       each(routes, (route, path) => {
         logger('Route: ', path);
@@ -105,6 +109,12 @@ ngModule.config(($routeProvider, $locationProvider, $compileProvider,
     positionClass: 'toast-bottom-right',
     timeOut: 2000,
   });
+});
+
+ngModule.run(($location, Auth) => {
+  if (!Auth.isAuthenticated()) {
+    Auth.login();
+  }
 });
 
 export default ngModule;
