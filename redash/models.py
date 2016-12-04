@@ -4,15 +4,13 @@ import hashlib
 import itertools
 import json
 import logging
-import time
 
 from funcy import project
 from flask_sqlalchemy import SQLAlchemy
 from flask.ext.sqlalchemy import SignallingSession
 from flask_login import UserMixin, AnonymousUserMixin
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.event import listens_for
-from sqlalchemy.inspection import inspect
+from sqlalchemy.event import listens_for, listen
 from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import object_session
 # noinspection PyUnresolvedReferences
@@ -84,50 +82,61 @@ class PseudoJSON(TypeDecorator):
 
 class TimestampMixin(object):
     updated_at = Column(db.DateTime(True), default=db.func.now(),
-                           onupdate=db.func.now(), nullable=False)
+                        onupdate=db.func.now(), nullable=False)
     created_at = Column(db.DateTime(True), default=db.func.now(),
-                           nullable=False)
+                        nullable=False)
 
 
 class ChangeTrackingMixin(object):
-    skipped_fields = ('id', 'created_at', 'updated_at', 'version')
-    _clean_values = None
-
-    def __init__(self, *a, **kw):
-        super(ChangeTrackingMixin, self).__init__(*a, **kw)
-        self.record_changes(self.user)
-
-    def prep_cleanvalues(self):
-        self.__dict__['_clean_values'] = {}
-        for attr in inspect(self.__class__).column_attrs:
-            col, = attr.columns
-            # 'query' is col name but not attr name
-            self._clean_values[col.name] = None
-
-    def __setattr__(self, key, value):
-        if self._clean_values is None:
-            self.prep_cleanvalues()
-        for attr in inspect(self.__class__).column_attrs:
-            col, = attr.columns
-            previous = getattr(self, attr.key, None)
-            self._clean_values[col.name] = previous
-
-        super(ChangeTrackingMixin, self).__setattr__(key, value)
-
-    def record_changes(self, changed_by):
-        db.session.add(self)
-        db.session.flush()
+    @classmethod
+    def after_change_listener(cls, mapper, connection, target):
+        state = db.inspect(target)
         changes = {}
-        for attr in inspect(self.__class__).column_attrs:
-            col, = attr.columns
-            if attr.key not in self.skipped_fields:
-                changes[col.name] = {'previous': self._clean_values[col.name],
-                                     'current': getattr(self, attr.key)}
 
-        db.session.add(Change(object=self,
-                              object_version=self.version,
-                              user=changed_by,
-                              change=changes))
+        for attr in state.attrs:
+            if attr.key not in cls.tracked_columns:
+                continue
+
+            hist = state.get_history(attr.key, True)
+
+            if not hist.has_changes():
+                continue
+
+            if hist.deleted:
+                previous = hist.deleted[0]
+            else:
+                previous = None
+
+            changes[attr.key] = {
+                'previous': previous,
+                'current': attr.value
+            }
+
+        if changes:
+            changed_by = cls.fetch_current_user_id() or target.user_id
+            db.session.add(Change(object=target,
+                                  object_version=target.version,
+                                  user_id=changed_by,
+                                  change=changes))
+
+    @staticmethod
+    def fetch_current_user_id():
+        from flask_login import current_user
+        from flask import has_app_context, has_request_context
+
+        # Return None if we are outside of request context.
+        if not has_app_context() or not has_request_context():
+            return
+        try:
+            return current_user.id
+        except AttributeError:
+            return
+
+    @classmethod
+    def __declare_last__(cls):
+        # get called after mappings are completed
+        listen(cls, 'after_update', cls.after_change_listener)
+        listen(cls, 'after_insert', cls.after_change_listener)
 
 
 class BelongsToOrgMixin(object):
@@ -612,6 +621,9 @@ def should_schedule_next(previous_iteration, now, schedule):
 
 
 class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
+    tracked_columns = ('data_source_id', 'latest_query_data_id', 'name', 'description', 'query_text', 'user_id',
+                       'is_archived', 'is_draft', 'schedule', 'options')
+
     id = Column(db.Integer, primary_key=True)
     version = Column(db.Integer)
     org_id = Column(db.Integer, db.ForeignKey('organizations.id'))
@@ -684,7 +696,7 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
 
         return d
 
-    def archive(self, user=None):
+    def archive(self):
         db.session.add(self)
         self.is_archived = True
         self.schedule = None
@@ -695,9 +707,6 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
 
         for a in self.alerts:
             db.session.delete(a)
-
-        if user:
-            self.record_changes(user)
 
     @classmethod
     def all_queries(cls, groups, drafts=False):
@@ -798,20 +807,6 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
         db.session.add(forked_query)
         return forked_query
 
-    def update_instance_tracked(self, changing_user, old_object=None, *args, **kwargs):
-        self.version += 1
-        self.update_instance(*args, **kwargs)
-        # save Change record
-        new_change = Change.save_change(user=changing_user, old_object=old_object, new_object=self)
-        return new_change
-
-    def tracked_save(self, changing_user, old_object=None, *args, **kwargs):
-        self.version += 1
-        self.save(*args, **kwargs)
-        # save Change record
-        new_change = Change.save_change(user=changing_user, old_object=old_object, new_object=self)
-        return new_change
-
     @property
     def runtime(self):
         return self.latest_query_data.runtime
@@ -829,6 +824,8 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
 
     def __unicode__(self):
         return unicode(self.id)
+
+
 
 
 @listens_for(Query.query_text, 'set')
@@ -951,10 +948,6 @@ class Change(GFKBase, db.Model):
         return d
 
     @classmethod
-    def log_change(cls, changed_by, obj):
-        return cls.create(object=obj, object_version=obj.version, user=changed_by, change=obj.changes)
-
-    @classmethod
     def last_change(cls, obj):
         return db.session.query(cls).filter(
             cls.object_id == obj.id,
@@ -1050,6 +1043,8 @@ def generate_slug(ctx):
 
 
 class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
+    tracked_columns = ('slug', 'name', 'user_id', 'layout', 'dashboard_filters_enabled', 'is_archived', 'is_draft')
+
     id = Column(db.Integer, primary_key=True)
     version = Column(db.Integer)
     org_id = Column(db.Integer, db.ForeignKey("organizations.id"))

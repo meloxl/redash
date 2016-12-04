@@ -142,7 +142,7 @@ class QueryResource(BaseResource):
     def delete(self, query_id):
         query = get_object_or_404(models.Query.get_by_id_and_org, query_id, self.current_org)
         require_admin_or_owner(query.user_id)
-        query.archive(self.current_user)
+        query.archive()
 
 
 class QueryForkResource(BaseResource):

@@ -2,15 +2,13 @@ from tests import BaseTestCase
 from redash.models import Query, db
 
 
-class TestApiKeyGetByObject(BaseTestCase):
-
+class TestQueryFork(BaseTestCase):
     def assert_visualizations(self, origin_q, origin_v, forked_q, forked_v):
         self.assertEqual(origin_v.options, forked_v.options)
         self.assertEqual(origin_v.type, forked_v.type)
         self.assertNotEqual(origin_v.id, forked_v.id)
         self.assertNotEqual(origin_v.query_rel, forked_v.query_rel)
         self.assertEqual(forked_q.id, forked_v.query_rel.id)
-
 
     def test_fork_with_visualizations(self):
         # prepare original query and visualizations
