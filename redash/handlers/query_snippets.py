@@ -17,7 +17,7 @@ class QuerySnippetResource(BaseResource):
         snippet = get_object_or_404(models.QuerySnippet.get_by_id_and_org, snippet_id, self.current_org)
         require_admin_or_owner(snippet.user.id)
 
-        snippet.update_instance(**params)
+        self.update_model(snippet, params)
 
         self.record_event({
             'action': 'edit',
@@ -30,7 +30,7 @@ class QuerySnippetResource(BaseResource):
     def delete(self, snippet_id):
         snippet = get_object_or_404(models.QuerySnippet.get_by_id_and_org, snippet_id, self.current_org)
         require_admin_or_owner(snippet.user.id)
-        snippet.delete_instance()
+        models.db.session.delete(snippet)
 
         self.record_event({
             'action': 'delete',
@@ -44,13 +44,15 @@ class QuerySnippetListResource(BaseResource):
         req = request.get_json(True)
         require_fields(req, ('trigger', 'description', 'snippet'))
 
-        snippet = models.QuerySnippet.create(
+        snippet = models.QuerySnippet(
             trigger=req['trigger'],
             description=req['description'],
             snippet=req['snippet'],
             user=self.current_user,
             org=self.current_org
         )
+
+        models.db.session.add(snippet)
 
         self.record_event({
             'action': 'create',

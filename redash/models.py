@@ -1427,7 +1427,7 @@ class QuerySnippet(TimestampMixin, db.Model, BelongsToOrgMixin):
 
     @classmethod
     def all(cls, org):
-        return cls.select().where(cls.org==org)
+        return cls.query.filter(cls.org == org)
 
     def to_dict(self):
         d = {
