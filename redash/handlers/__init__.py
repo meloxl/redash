@@ -39,6 +39,6 @@ def inject_variables():
 
 
 def init_app(app):
-    from redash.handlers import embed, queries, static, authentication, admin
+    from redash.handlers import embed, queries, static, authentication, admin, embedjson
     app.register_blueprint(routes)
     api.init_app(app)
