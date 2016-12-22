@@ -7,7 +7,12 @@
     <div>
       <code>&lt;iframe src="{{ embedUrl }}" width="720" height="391"&gt;&lt;/iframe&gt;</code>
     </div>
-    <span class="text-muted">(height should be adjusted)</span>
+    <div ng-if="embedJsonUrl">
+      <h5>Embed Json</h5>
+      <div>
+        <code>{{ embedJsonUrl }}</code>
+      </div>
+    </div>
     <div ng-if="snapshotUrl">
       <h5>Image Embed</h5>
       <div>

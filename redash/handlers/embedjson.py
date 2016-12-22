@@ -45,7 +45,7 @@ def run_query_sync(data_source, parameter_values, query_text, max_age=0):
 
     try:
         started_at = time.time()
-        data, error = data_source.query_runner.run_query(query_text)
+        data, error = data_source.query_runner.run_query(query_text, current_user)
 
         if error:
             return None
@@ -68,10 +68,6 @@ def run_query_sync(data_source, parameter_values, query_text, max_age=0):
 @routes.route(org_scoped_rule('/embedjson/query/<query_id>'), methods=['GET'])
 @login_required
 def embedjson(query_id, org_slug=None):
-    visualizations = 1
-    logging.info('entering embedjson 3  ')
-    logging.info(+settings.ALLOW_PARAMETERS_IN_EMBEDS)
-
     query = models.Query.get_by_id_and_org(query_id, current_org)
     require_access(query.groups, current_user, view_only)
     qr = {}

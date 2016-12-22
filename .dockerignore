@@ -1,4 +1,9 @@
 rd_ui/.tmp/
 rd_ui/node_modules/
 .git/
+.github/
 .vagrant/
+.idea/
+.ebextensions
+.tmp
+node_modules/

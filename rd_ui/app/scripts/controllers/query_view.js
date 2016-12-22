@@ -331,7 +331,13 @@
           $scope.close = function() {
             $modalInstance.close();
           }
+          var arr = [];
+          for(var i = 0;i<query.options.parameters.length;i++){
+            var str = 'p_' + query.options.parameters[i].name + '=' + query.options.parameters[i].value;
+            arr.push(str);
+          }
           $scope.embedUrl = basePath + 'embed/query/' + query.id + '/visualization/' + visualization.id + '?api_key=' + query.api_key;
+          $scope.embedJsonUrl = basePath + 'embedjson/query/' + query.id + '?api_key=' + query.api_key + '&' + arr.join('&');
           if (window.snapshotUrlBuilder) {
             $scope.snapshotUrl = snapshotUrlBuilder(query, visualization);
           }
